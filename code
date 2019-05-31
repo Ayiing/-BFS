@@ -1,0 +1,153 @@
+/*BFS 和 队列*/
+#include <stdio.h>
+#include <stdlib.h>
+//#define overstep(x,y) (x>=0&&x<=2&&y>=0&&y<=2) //判断移位的时候是否越界
+typedef struct _node{ //一个结点一个状态
+    int chess[3][3];
+    struct _node * next;
+}node;
+int cnt = 0;//步骤数
+node *head;//初始状态
+int check(int (*)[3],int (*)[3]);//检查是否达到目标状态 1-达到 0-未达到
+node *find_(node *);//形参是一个状态，返回值是一串状态
+void copy_(node *,node*);//形参是父节点，和子节点 根据父节点的移位复制出一个子节点，无返回值，
+void eight_num(node *head,int(*goal)[3]);//主要的操作函数，形参是初始状态以及目标状态数组
+void print_(node *);//打印状态
+node* tail_(node* head);//返回head链的尾结点
+int repeat(node *);//形参是一个子结点，判断是否和之前的结点状态相同 1-相同则不保存该结点
+void free_(node *head);
+void test(node *cur)
+{
+    while(cur != NULL){
+        print_(cur);
+        printf("->\n");
+        cur = cur->next;
+    }
+}
+int main()
+{
+    //int chess[3][3]={2,3,1,5,0,8,4,6,7};//初始状态
+    int goal[3][3]={{1,2,3},{8,0,4},{7,6,5}};//目标状态
+    node cur = {{{2,8,3},{1,0,4},{7,6,5}},NULL};
+    //node cur = {{{2,3,1},{5,0,8},{4,6,7}},NULL};
+    head = (node*)malloc(sizeof(node));
+    copy_(head,&cur);
+    eight_num(head,goal);
+    free_(head);
+    return 0;
+}
+int check(int (*chess)[3],int (*goal)[3])
+{
+    for(int i = 0; i < 3; i++)
+        for(int j = 0; j <3; j++)
+            if(chess[i][j] != goal[i][j])
+                return 0;
+    return 1;
+}
+/*一个函数，能进行压入队列，弹出队列的操作
+          1. 检查队列头结点的状态-check
+          2.是->结束，否->找到该状态的所有子状态（子节点）-->另一个函数find(兼有对chess进行操作),
+          3.把这些子节点压入队尾，并且头节点后移，销毁原来的头节点---------这个函数需要头指针 尾指针
+*/
+void eight_num(node *phead,int (*goal)[3])
+{
+    node *tail = phead;
+    while(phead != NULL){//phead为空结束寻找解的状态，即无解
+        printf("第%d次搜索\n",cnt);
+        print_(phead);
+        if(check(phead->chess,goal)){
+//            printf("第%d次搜索\n",cnt);
+//            print_(phead);
+            return ;
+        }
+        //test(phead);
+        tail = tail_(tail);//tail 指向尾节点
+//        printf("当前状态下尾节点tail = %p\n",tail);
+//        printf("当前检测的结点phead %p\n",phead);
+        tail->next = find_(phead);//每弹出一个父节点，在队尾压入一组子节点
+//        printf("\n*******************\n");
+        cnt++;
+        phead = phead->next;
+    }
+    printf("没有找到路径到达目标状态!\n");
+    return ;
+}
+int repeat(node *cur)
+{
+    node *head1 = head;
+    while(head1 != NULL)
+    {
+        if(check(cur->chess,head1->chess))
+            return 1;
+        head1 = head1->next;
+    }
+    return 0;
+}
+node *find_(node *father)
+{
+    //先定位到(0,0)位置
+    int x0,y0;
+    for(int i = 0; i < 3; i++)
+        for(int j = 0; j < 3; j++)
+            if(father->chess[i][j] == 0){
+                x0 = i;
+                y0 = j;
+                break;
+            }
+    // |i-x0|+|j-y0| == 1 &&对0进行移位还要保证不会越界-->overstep && father->dir + 子->dir != 1和5
+    //由于要记住子节点如何从父节点移位过来，不用绝对值，并且不可能发生越界
+    node *head,*cur = (node*)malloc(sizeof(node)),*cur_last;
+    cur->next = NULL;
+    head = cur;
+    for(int i = 0; i < 3; i++)
+        for(int j = 0; j < 3; j++){
+            if(abs(i-x0)+abs(j-y0) == 1){
+                cur->next = (node*)malloc(sizeof(node));
+                cur_last = cur;
+                cur = cur_last->next;
+                father->chess[x0][y0] = father->chess[i][j];
+                father->chess[i][j] = 0; //修改father,记得还原
+                copy_(cur,father);
+                father->chess[i][j] = father->chess[x0][y0];
+                father->chess[x0][y0] = 0;
+                if(repeat(cur)){
+                    free(cur);
+                    cur = cur_last;
+                }
+            }
+        }
+    cur->next = NULL;
+    cur = head->next;
+    free(head);
+    return cur;
+}
+void copy_(node *son,node *father)
+{
+    for(int i = 0; i < 3; i++)
+        for(int j = 0; j < 3; j++)
+            son->chess[i][j] = father->chess[i][j];
+    son->next = NULL;
+}
+void print_(node *cur)
+{
+    for(int i = 0; i < 3; i++){
+        for(int j = 0; j < 3; j++)
+            printf("%d  ",cur->chess[i][j]);
+    putchar('\n');
+    }
+}
+node* tail_(node* head)//寻找尾节点
+{
+    while(head->next != NULL)
+        head = head->next;
+    return head;
+}
+void free_(node *head)
+{
+    node *cur = head;
+    while(cur != NULL){
+        head = head->next;
+        free(cur);
+        cur = head;
+    }
+}
