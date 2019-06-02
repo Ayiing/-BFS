@@ -1,0 +1,163 @@
+/*BFS 和 队列*/
+#include <stdio.h>
+#include <stdlib.h>
+typedef struct treenode{ //一个树结点一个状态
+    int chess[3][3];
+    struct treenode *next[4];//四叉树结点
+}node;
+typedef struct condition{ //队列结点指向树的一个结点
+    node *cur;
+    struct condition *next;
+}queue;
+int cnt = 0;//步骤数
+queue *head;//队列的头节点
+int check(int (*)[3],int (*)[3]);//检查是否达到目标状态 1-达到 0-未达到
+void extend_(node *);//形参是父节点，拓展该结点
+void inQueue(node* fatherNode,queue* tail);//形参是状态树的父节点，将其子结点全压入队尾
+void copy_(node*,node*);//形参是父节点，和子节点 根据父节点的移位复制出一个子节点，无返回值，
+void eight_num(node *root,int(*goal)[3]);//主要的操作函数，形参是初始状态以及目标状态数组
+void print_(node *);//打印状态
+queue* tail_(queue *);//返回队列的尾结点
+int repeat(node *);//形参是待添入队列中的一个状态，判断是否和之前的结点状态相同 1=相同则不保存该结点
+void freeQueue(queue *head);
+void freeTree(node *Thead);
+int check_leave(node *Thead);//检查是否是叶节点
+int main()
+{
+    //int chess[3][3]={2,3,1,5,0,8,4,6,7};//初始状态
+    int goal[3][3]={{1,2,3},{8,0,4},{7,6,5}};//目标状态
+    node cur = {{{2,8,3},{1,6,4},{7,0,5}},{NULL,NULL,NULL,NULL}};
+    //node cur = {{{2,3,1},{5,0,8},{4,6,7}},{NULL,NULL,NULL,NULL}};
+    node *root = (node*)malloc(sizeof(node));
+    copy_(root,&cur);
+    eight_num(root,goal);
+    freeQueue(head);
+    freeTree(root);
+    return 0;
+}
+int check(int (*chess)[3],int (*goal)[3])
+{
+    for(int i = 0; i < 3; i++)
+        for(int j = 0; j <3; j++)
+            if(chess[i][j] != goal[i][j])
+                return 0;
+    return 1;
+}
+void eight_num(node *root,int (*goal)[3])
+{
+    head = (queue*)malloc(sizeof(queue));
+    head->cur = root;
+    head->next = NULL;
+    queue *phead = head,*tail = phead;
+    while(phead != NULL){
+        printf("第%d次搜索:\n",cnt++);
+        print_(phead->cur);
+        if(check(phead->cur->chess,goal))//在这之前加上估价函数
+            return ;
+        tail = tail_(tail);//tail 指向队尾
+        extend_(phead->cur);//拓展父节点
+        inQueue(phead->cur,tail);//拓展的子节点进入队尾
+        phead = phead->next;
+    }
+}
+int repeat(node *cur)//对树进行遍历 入队->层次遍历算法(对队列遍历）
+{
+    queue *head1 = head;
+    while(head1 != NULL)
+    {
+        if(check(cur->chess,head1->cur->chess))
+            return 1;
+        head1 = head1->next;
+    }
+    return 0;
+}
+void extend_(node *father)
+{
+    //先定位到(0,0)位置
+    int x0,y0;
+    for(int i = 0; i < 3; i++)
+        for(int j = 0; j < 3; j++)
+            if(father->chess[i][j] == 0){
+                x0 = i;
+                y0 = j;
+                break;
+            }
+    int k = 0;
+    for(int i = 0; i < 3; i++)
+        for(int j = 0; j < 3; j++)
+            if(abs(i-x0)+abs(j-y0) == 1){
+                father->next[k] = (node*)malloc(sizeof(node));
+                father->chess[x0][y0] = father->chess[i][j];
+                father->chess[i][j] = 0;
+                copy_(father->next[k],father);
+                father->chess[i][j] = father->chess[x0][y0];//还原father，以备下次
+                father->chess[x0][y0] = 0;
+                if(repeat(father->next[k])){
+                    free(father->next[k]);
+                    father->next[k] = NULL;
+                    k--;//强迫症= =，把所有子节点靠左放
+                }
+                k++;
+        }
+}
+void inQueue(node* fatherNode,queue* tail)
+{
+    node *child = fatherNode->next[0];
+    for(int i = 1; child != NULL; i++){
+        tail->next = (queue*)malloc(sizeof(node));
+        tail = tail->next;
+        tail->cur = child;//即子节点进入队列
+        tail->next = NULL;
+        child = fatherNode->next[i];
+    }
+}
+void copy_(node *son,node *father)
+{
+    for(int i = 0; i < 3; i++)
+        for(int j = 0; j < 3; j++)
+            son->chess[i][j] = father->chess[i][j];
+    for(int i = 0 ; i < 4; i++)
+        son->next[i] = NULL;
+}
+void print_(node *cur)
+{
+    for(int i = 0; i < 3; i++){
+        for(int j = 0; j < 3; j++)
+            printf("%d  ",cur->chess[i][j]);
+    putchar('\n');
+    }
+}
+queue* tail_(queue* tail)//寻找尾节点
+{
+    while(tail->next != NULL)
+        tail = tail->next;
+    return tail;
+}
+void freeQueue(queue *head)
+{
+    queue *cur = head;
+    while(cur != NULL){
+        head = head->next;
+        free(cur);
+        cur = head;
+    }
+}
+void freeTree(node *Thead)//递归摧毁？     是否正确？
+{
+    if(check_leave(Thead)){           //抵达叶子结点 即free
+        free(Thead);
+        return ;
+    }
+    for(int i = 0; Thead->next[i] != NULL; i++){
+        freeTree(Thead->next[i]);
+        Thead->next[i] = NULL;
+    }
+    return ;
+}
+int check_leave(node *Thead)
+{
+    for(int i = 0; i < 4; i++)
+        if(Thead->next[i] != NULL)
+            return 0;
+    return 1;
+}
