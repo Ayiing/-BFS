@@ -1,0 +1,426 @@
+//
+//  main.c
+//  Eightnum
+//
+//  Created by Chenzhan Shang on 2019/6/4.
+//  Copyright © 2019 Chenzhan. All rights reserved.
+//
+
+/*BFS 和 队列*/
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+typedef struct treenode{ //一个树结点一个状态
+    int chess[3][3];
+    int height;
+    int value;//最终的估价函数;
+    struct treenode *next[4];//四叉树结点
+    struct treenode *parent;
+}node;
+typedef struct condition{ //队列结点指向树的一个结点
+    node *cur;
+    struct condition *next;
+}queue;
+int cnt = 0;//步骤数
+queue *head;//队列的头节点
+node *root;//树的根结点
+int check(int (*)[3],int (*)[3]);//检查是否达到目标状态 1-达到 0-未达到
+void extend_(node *,int (*)[3]);//形参是父节点，拓展该结点
+void inQueue(node* fatherNode,queue* tail);//形参是状态树的父节点，将其子结点全压入队尾
+void copy_(node*,node*);//形参是父节点，和子节点 根据父节点的移位复制出一个子节点，无返回值
+int disorder(int (*)[3],int (*)[3]);//返回当前八数码和目标八数码错排个数-即为h(n)
+void eight_num(node *root,int(*goal)[3]);//主要的操作函数，形参是初始状态以及目标状态数组
+void print_(node *);//打印状态
+queue* tail_(queue *);//返回队列的尾结点
+int repeat(node *);//形参是待添入队列中的一个状态，判断是否和之前的结点状态相同 1=相同则不保存该结点
+void freeQueue(queue *head);
+void freeTree(node *Thead);
+int check_leave(node *Thead);//检查是否是叶节点
+void print_path(node *result);//从拓展出来的目标结点回溯输出解路径
+void initial(int (*)[3],int (*)[3]);//给一个初始数组和目标状态，初始化根节点
+void sort(queue *phead);//将部分队列按value升序排列
+void value1(node * current,int (* goal)[3]);//原始估价函数
+void value2(node * current,int (* goal)[3]);//改进估价函数
+void value3(node * current,int (* goal)[3]);//改进估价函数
+void value4(node * current,int (* goal)[3]);//改进估价函数
+void value5(node * current,int (* goal)[3]);//改进估价函数
+void value6(node * current,int (* goal)[3]);//改进估价函数
+void value7(node * current,int (* goal)[3]);//改进估价函数
+void value8(node * current,int (* goal)[3]);//改进估价函数
+void value9(node * current,int (* goal)[3]);//改进估价函数
+int main()
+{
+    //int s0[3][3] = {{0,6,2},{1,4,8},{3,5,7}};//ke 310
+    //int s0[3][3] = {{1,2,3},{7,8,4},{5,6,0}};//可
+    //int s0[3][3] = {{5,3,7},{1,2,0},{6,8,4}};//重点 no
+    //int s0[3][3] = {{1,4,7},{6,0,2},{5,3,8}};//跑不出来
+    //int s0[3][3] = {{4,5,0},{8,1,3},{6,7,2}};//ke
+    //int s0[3][3] = {{1,0,7},{6,2,5},{4,3,8}};
+    //int s0[3][3] = {{2,8,7},{0,3,5},{1,6,4}};//493
+    //int s0[3][3] = {{1,0,3},{2,4,8},{7,5,6}};//508
+    //int s0[3][3] = {{8,3,5},{4,6,1},{2,0,7}};//503
+    //int s0[3][3] = {{0,6,5},{4,2,7},{3,1,8}};//406
+    //int s0[3][3] = {{4,5,0},{7,2,8},{3,6,1}};//31
+    int s0[3][3] = {{7,8,2},{1,5,4},{3,6,0}};//120
+    int goal[3][3] = {{1,2,3},{4,5,6},{7,8,0}};
+    initial(s0,goal);
+    eight_num(root,goal);
+    freeQueue(head);
+    //freeTree(root);
+    return 0;
+}
+void initial(int (*s0)[3],int (*goal)[3])
+{
+    root = (node*)malloc(sizeof(node));
+    for(int i = 0; i < 3; i++)
+        for(int j = 0; j <3; j++)
+            root->chess[i][j] = s0[i][j];
+    root->parent = NULL;
+    root->height = 0;
+    for(int i = 0; i < 4; i++)
+        root->next[i] = NULL;
+    root->value = disorder(s0,goal);
+}
+int check(int (*chess)[3],int (*goal)[3])
+{
+    for(int i = 0; i < 3; i++)
+        for(int j = 0; j <3; j++)
+            if(chess[i][j] != goal[i][j])
+                return 0;
+    return 1;
+}
+int disorder(int (*chess)[3],int (*goal)[3])
+{
+    int num = 0;
+    for(int i = 0; i < 3; i++)
+        for(int j = 0; j < 3; j++)
+            if(chess[i][j] != goal[i][j])
+                num++;
+    return num;
+}
+void eight_num(node *root,int (*goal)[3])
+{
+    head = (queue*)malloc(sizeof(queue));
+    head->cur = root;
+    head->next = NULL;
+    queue *phead = head,*tail = phead;
+    while(phead != NULL){
+        if(check(phead->cur->chess,goal)){
+            printf("the num of extended nodes is %d,the path is:\n",cnt);
+            print_path(phead->cur);
+            return ;
+        }
+        cnt++;
+        tail = tail_(tail);//tail 指向队尾
+        extend_(phead->cur,goal);//拓展父节点,goal用于判断生成的子节点和目标状态错排数
+        inQueue(phead->cur,tail);//拓展的子节点进入队尾
+        sort(phead);
+        phead = phead->next;
+    }
+}
+int repeat(node *cur)//对树进行遍历 入队->层次遍历算法(对队列遍历）
+{
+    queue *head1 = head;
+    while(head1 != NULL)
+    {
+        if(check(cur->chess,head1->cur->chess))
+            return 1;
+        head1 = head1->next;
+    }
+    return 0;
+}
+void extend_(node *father,int (*goal)[3])
+{
+    //先定位到(0,0)位置
+    int x0,y0;
+    for(int i = 0; i < 3; i++)
+        for(int j = 0; j < 3; j++)
+            if(father->chess[i][j] == 0){
+                x0 = i;
+                y0 = j;
+                break;
+            }
+    int k = 0;
+    for(int i = 0; i < 3; i++)
+        for(int j = 0; j < 3; j++)
+            if(abs(i-x0)+abs(j-y0) == 1){
+                father->next[k] = (node*)malloc(sizeof(node));
+                father->chess[x0][y0] = father->chess[i][j];
+                father->chess[i][j] = 0;
+                copy_(father->next[k],father);
+                father->next[k]->parent = father;
+                father->next[k]->height = father->height+1;
+                //father->next[k]->value = disorder(father->next[k]->chess,goal)+father->next[k]->height;
+                //value1(father->next[k], goal);
+                //value2(father->next[k], goal);
+                //value3(father->next[k], goal);
+                //value4(father->next[k], goal);//经典强化：曼哈顿距离+log10
+                //value5(father->next[k], goal);
+                value6(father->next[k], goal);//排除0的影响
+                //value7(father->next[k], goal);
+                //value8(father->next[k], goal);
+                //value9(father->next[k], goal);
+                father->chess[i][j] = father->chess[x0][y0];//还原father，以备下次
+                father->chess[x0][y0] = 0;
+                if(repeat(father->next[k])){
+                    free(father->next[k]);
+                    father->next[k] = NULL;
+                    k--;//强迫症= =，把所有子节点靠左放
+                }
+                k++;
+            }
+}
+void inQueue(node* fatherNode,queue* tail)
+{
+    //   node *child = fatherNode->next[0];
+    //    if(cnt == 6)
+    //        for(int i = 1; fatherNode->next[i] != NULL; i++)
+    //            printf("%p\n",fatherNode->next[i]);
+    //    for(int i = 1; child != NULL; i++){
+    //        tail->next = (queue*)malloc(sizeof(queue));
+    //        tail = tail->next;
+    //        tail->cur = child;//即子节点进入队列
+    //        tail->next = NULL;
+    //        child = fatherNode->next[i];
+    //    }
+    node *child;
+    for(int i = 0; i < 4; i++){
+        if(fatherNode->next[i] == NULL)
+            continue;
+        child = fatherNode->next[i];
+        tail->next = (queue*)malloc(sizeof(queue));
+        tail = tail->next;
+        tail->cur = child;
+        tail->next = NULL;
+    }
+}
+void copy_(node *son,node *father)
+{
+    for(int i = 0; i < 3; i++)
+        for(int j = 0; j < 3; j++)
+            son->chess[i][j] = father->chess[i][j];
+    for(int i = 0 ; i < 4; i++)
+        son->next[i] = NULL;
+}
+void print_(node *cur)
+{
+    for(int i = 0; i < 3; i++){
+        for(int j = 0; j < 3; j++)
+            printf("%d  ",cur->chess[i][j]);
+        putchar('\n');
+    }
+}
+queue* tail_(queue* tail)//寻找尾节点
+{
+    while(tail->next != NULL)
+        tail = tail->next;
+    return tail;
+}
+void freeQueue(queue *head)
+{
+    queue *cur = head;
+    while(cur != NULL){
+        head = head->next;
+        free(cur);
+        cur = head;
+    }
+}
+void freeTree(node *Thead)//递归摧毁？
+{
+    if(check_leave(Thead)){           //抵达叶子结点 即free
+        free(Thead);
+        return ;
+    }
+    for(int i = 0; Thead->next[i] != NULL; i++){
+        freeTree(Thead->next[i]);
+        Thead->next[i] = NULL;
+    }
+    return ;
+}
+int check_leave(node *Thead)
+{
+    for(int i = 0; i < 4; i++)
+        if(Thead->next[i] != NULL)
+            return 0;
+    return 1;
+}
+void print_path(node *result)
+{
+    if(result == root){
+        print_(result);
+        putchar('\n');
+        return ;
+    }
+    print_path(result->parent);
+    print_(result);
+    putchar('\n');
+}
+void sort(queue *phead)
+{
+    queue *p1,*pri1,*pri2,*p2,*temp;
+    for(pri1 = phead,p1 = pri1->next; p1->next != NULL; pri1 = p1,p1 = pri1->next){
+        for(pri2 = p1,p2 = pri2->next; p2 != NULL; pri2 = p2,p2 = pri2->next){
+            if(p1->cur->value > p2->cur->value){
+                temp = p2->next;
+                pri1->next = p2;
+                pri2->next = p1;
+                p2->next = p1->next;
+                p1->next = temp;
+                temp = p2; p2 = p1; p1 = temp;
+            }
+        }
+    }
+}
+void value1(node * current,int (* goal)[3]){//原始方式
+    current->value = disorder(current->chess,goal)+current->height;
+}
+void value2(node * current,int (* goal)[3]){//使用log
+    double x=(double)current->height;
+    int logh=(int)log(x);
+    current->value = disorder(current->chess,goal)+logh;
+}
+void value3(node * current,int (* goal)[3]){//曼哈顿距离+log
+    int distance=0,i,j,m,n;
+    double x=(double)current->height;
+    int logh=(int)log(x);
+    for(i=0;i<3;i++){
+        for(j=0;j<3;j++){
+            if(current->chess[i][j]!=goal[i][j]){
+                for(m=0;m<3;m++){
+                    for(n=0;n<3;n++){
+                        if(current->chess[i][j]==goal[m][n]){
+                            distance+=abs(m-i)+abs(n-j);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    current->value=distance+logh;
+}
+void value4(node * current,int (* goal)[3]){//曼哈顿距离+log10
+    int distance=0,i,j,m,n;
+    double x=(double)current->height;
+    //int logh=(int)log10(x);
+    int logh=(int)(log(x)/log(10));
+    for(i=0;i<3;i++){
+        for(j=0;j<3;j++){
+            if(current->chess[i][j]!=goal[i][j]){
+                for(m=0;m<3;m++){
+                    for(n=0;n<3;n++){
+                        if(current->chess[i][j]==goal[m][n]){
+                            distance+=abs(m-i)+abs(n-j);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    current->value=distance+logh;
+}
+void value5(node * current,int (* goal)[3]){//曼哈顿距离取平方+log10
+    int distance=0,i,j,m,n;
+    double x=(double)current->height;
+    //int logh=(int)log10(x);
+    int logh=(int)(log(x)/log(10));
+    for(i=0;i<3;i++){
+        for(j=0;j<3;j++){
+            if(current->chess[i][j]!=goal[i][j]){
+                for(m=0;m<3;m++){
+                    for(n=0;n<3;n++){
+                        if(current->chess[i][j]==goal[m][n]){
+                            distance+=(abs(m-i)+abs(n-j))*(abs(m-i)+abs(n-j));
+                            //distance+=abs(m-i)*abs(m-i)+abs(n-j)*abs(n-j);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    current->value=distance+logh;
+}
+void value6(node * current,int (* goal)[3]){
+    int distance=0,i,j,m,n;
+    double x=(double)current->height;
+    //int logh=(int)log10(x);
+    int logh=(int)(log(x)/log(10));
+    for(i=0;i<3;i++){
+        for(j=0;j<3;j++){
+            if(current->chess[i][j]!=goal[i][j]&&current->chess[i][j]!=0){//排除0的影响
+                for(m=0;m<3;m++){
+                    for(n=0;n<3;n++){
+                        if(current->chess[i][j]==goal[m][n]){
+                            distance+=abs(m-i)+abs(n-j);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    current->value=distance+logh;
+}
+void value7(node * current,int (* goal)[3]){
+    int distance=0,i,j,m,n;
+    double x=(double)current->height;
+    int sqrh=(int)sqrt(x);
+    for(i=0;i<3;i++){
+        for(j=0;j<3;j++){
+            if(current->chess[i][j]!=goal[i][j]){//排除0的影响
+                for(m=0;m<3;m++){
+                    for(n=0;n<3;n++){
+                        if(current->chess[i][j]==goal[m][n]){
+                            distance+=abs(m-i)+abs(n-j);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    current->value=distance+sqrh;
+}
+void value8(node * current,int (* goal)[3]){
+    int distance=0,i,j,m,n;
+    double x=(double)current->height;
+    int sqrh=(int)sqrt(x);
+    for(i=0;i<3;i++){
+        for(j=0;j<3;j++){
+            if(current->chess[i][j]!=goal[i][j]&&current->chess[i][j]!=0){//排除0的影响
+                for(m=0;m<3;m++){
+                    for(n=0;n<3;n++){
+                        if(current->chess[i][j]==goal[m][n]){
+                            distance+=abs(m-i)+abs(n-j);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    current->value=distance+sqrh;
+}
+void value9(node * current,int (* goal)[3]){
+    int distance=0,i,j,m,n;
+    double x=(double)current->height;
+    //int logh=(int)log10(x);
+    int logh=(int)(log(x)/log(10));
+    int sqrh=(int)sqrt(x);
+    for(i=0;i<3;i++){
+        for(j=0;j<3;j++){
+            if(current->chess[i][j]!=goal[i][j]&&current->chess[i][j]!=0){//排除0的影响
+                for(m=0;m<3;m++){
+                    for(n=0;n<3;n++){
+                        if(current->chess[i][j]==goal[m][n]){
+                            distance+=abs(m-i)+abs(n-j);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if(current->height<=10){
+        current->value=distance+current->height;
+    }
+    else{
+        current->value=distance+logh;
+    }
+}
